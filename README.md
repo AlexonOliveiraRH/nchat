@@ -190,7 +190,11 @@ Fedora
 ------
 **Dependencies**
 
+<<<<<<< HEAD
     sudo dnf install ccache file-devel file-libs gperf readline-devel clang golang libsqlite3x-devel libsqlite3x libsq3-devel
+=======
+    sudo dnf install git cmake clang golang ccache file-devel file-libs gperf readline-devel openssl-devel ncurses-devel sqlite-devel zlib-devel
+>>>>>>> upstream/master
 
 **Source**
 
@@ -419,6 +423,8 @@ This configuration file holds general user interface settings. Default content:
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
+    online_status_share=1
+    online_status_dynamic=0
     proxy_indicator=🔒
     read_indicator=✓
     spell_check_command=
@@ -427,6 +433,7 @@ This configuration file holds general user interface settings. Default content:
     terminal_bell_inactive=1
     terminal_title=
     top_enabled=1
+    typing_status_share=1
 
 ### attachment_indicator
 
@@ -553,6 +560,18 @@ Specifies whether to notify (terminal bell) new unread messages in muted chats.
 Specifies whether chat list position of muted chats should reflect the time of
 their last received/sent message. Otherwise muted chats are listed last.
 
+### online_status_share
+
+Share online status with other users.
+Note: Disabling this stops updates on other users online/typing status for
+WhatsApp.
+
+### online_status_dynamic
+
+Dynamically update online status based on terminal active state.
+Note: Enabling this stops updates on other users online/typing status for
+WhatsApp when the terminal is not active.
+
 ### spell_check_command
 
 Specifies a custom command to use for spell checking composed messages. If not
@@ -585,6 +604,11 @@ Specifies custom terminal title, ex: `terminal_title=nchat - telegram`.
 ### top_enabled
 
 Specifies whether to display top bar. Controlled by Ctrl-p in run-time.
+
+### typing_status_share
+
+Specifies whether to share typing status with other user(s) in the
+conversation.
 
 ~/.nchat/key.conf
 -----------------

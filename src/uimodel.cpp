@@ -541,6 +541,9 @@ void UiModel::EntryKeyHandler(wint_t p_Key)
 
 void UiModel::SetTyping(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsTyping)
 {
+  static const bool typingStatusShare = UiConfig::GetBool("typing_status_share");
+  if (!typingStatusShare) return;
+
   static std::string lastProfileId;
   static std::string lastChatId;
   static bool lastIsTyping = false;
@@ -2184,6 +2187,9 @@ void UiModel::ProtocolSetCurrentChat()
 
 void UiModel::SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline)
 {
+  static const bool onlineStatusShare = UiConfig::GetBool("online_status_share");
+  if (!onlineStatusShare) return;
+
   std::shared_ptr<SetStatusRequest> setStatusRequest = std::make_shared<SetStatusRequest>();
   setStatusRequest->isOnline = p_IsOnline;
   LOG_TRACE("set status %s online %d", p_ProfileId.c_str(), (int)p_IsOnline);
@@ -2377,7 +2383,21 @@ void UiModel::SetCurrentChatIndexIfNotSet()
 
 void UiModel::SetTerminalActive(bool p_TerminalActive)
 {
-  m_TerminalActive = p_TerminalActive;
+  if (p_TerminalActive != m_TerminalActive)
+  {
+    m_TerminalActive = p_TerminalActive;
+    LOG_TRACE("set terminal active %d", m_TerminalActive);
+
+    static const bool onlineStatusDynamic = UiConfig::GetBool("online_status_dynamic");
+    if (onlineStatusDynamic)
+    {
+      for (auto& protocol : m_Protocols)
+      {
+        const std::string& profileId = protocol.first;
+        SetStatusOnline(profileId, m_TerminalActive);
+      }
+    }
+  }
 }
 
 void UiModel::DesktopNotifyUnread(const std::string& p_Name, const std::string& p_Text)
@@ -2657,7 +2677,8 @@ void UiModel::EditMessage()
     if (!GetSelectMessageActive() || GetEditMessageActive()) return;
 
     std::string profileId = m_CurrentChat.first;
-    if (!m_Protocols[profileId]->HasFeature(FeatureEditMessages))
+    if (!m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinTwoDays) &&
+        !m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinFifteenMins))
     {
       MessageDialog("Warning", "Protocol does not support editing.", 0.7, 5);
       return;
@@ -2681,10 +2702,20 @@ void UiModel::EditMessage()
     const time_t timeNow = time(NULL);
     const time_t timeSent = (time_t)(chatMessage.timeSent / 1000);
     const time_t messageAgeSec = timeNow - timeSent;
-    static const time_t maxEditAgeSec = 48 * 3600;
-    if (messageAgeSec >= maxEditAgeSec)
+    static const time_t twoDaysSec = 48 * 3600;
+    static const time_t fifteenMinsSec = 15 * 60;
+
+    if (m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinTwoDays) &&
+        (messageAgeSec >= twoDaysSec))
     {
       MessageDialog("Warning", "Messages older than 48 hours cannot be edited.", 0.8, 5);
+      return;
+    }
+    else if (m_Protocols[profileId]->HasFeature(FeatureEditMessagesWithinFifteenMins) &&
+             (messageAgeSec >= fifteenMinsSec))
+
+    {
+      MessageDialog("Warning", "Messages older than 15 minutes cannot be edited.", 0.8, 5);
       return;
     }
 
@@ -2707,6 +2738,8 @@ void UiModel::SaveEditMessage()
     std::string profileId = m_CurrentChat.first;
     std::string chatId = m_CurrentChat.second;
     std::wstring& entryStr = m_EntryStr[profileId][chatId];
+    const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+    const ChatMessage& chatMessage = messages.at(m_EditMessageId);
 
     if (entryStr.empty()) return;
 
@@ -2715,6 +2748,7 @@ void UiModel::SaveEditMessage()
     editMessageRequest->chatId = chatId;
     editMessageRequest->msgId = m_EditMessageId;
     editMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
+    editMessageRequest->chatMessage.timeSent = chatMessage.timeSent;
     m_Protocols[profileId]->SendRequest(editMessageRequest);
 
     SetEditMessageActive(false);
